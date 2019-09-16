@@ -138,6 +138,7 @@ class VidManager(S3Session):
                 result, err = self.upload(self.test_bucket, f, key=f.split("/")[-1])
                 if result:
                     os.remove(f)
+                    #TODO: send to logs
                     print(f"upload: ", f.split("/")[-1])
                 else:
                     # TODO: add to a log
@@ -211,16 +212,28 @@ class VidManager(S3Session):
             index=None,
         )
 
-        local_metadata.to_csv("meta.csv", index=False)
-        aws_metadata = pd.read_csv(self.download(self.test_bucket, "meta.csv"))
+        #local_metadata.to_csv("meta.csv", index=False)
+        try:
+            aws_metadata = pd.read_csv(self.download(self.test_bucket, "metadata.csv"))
+        except:
+            aws_metadata = pd.DataFrame(
+            columns=[
+                "file_name",
+                "start",
+                "epoch_start",
+                "end",
+                "epoch_end",
+                "duration (s)",
+            ],
+            index=None,
+            )
 
-        new_metadata = pd.concat([local_metadata, aws_metadata], ignore_index=True)
+        new_metadata = pd.concat([local_metadata, aws_metadata], ignore_index=True, sort = False)
         new_metadata.drop_duplicates(subset="file_name", inplace=True)
 
-        # filenames which may not be in the bucket
-        new_uploads = local_metadata["file_name"][
-            ~local_metadata["file_name"].isin(aws_metadata["file_name"])
-        ].to_list()
+        new_metadata.to_csv("metadata.csv", index=False)
+
+        self.upload(self.test_bucket, "metadata.csv")
 
         return new_metadata
 
