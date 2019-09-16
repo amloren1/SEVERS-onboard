@@ -1,6 +1,7 @@
 from configparser import ConfigParser
 import datetime
-#import logging
+
+# import logging
 import uuid
 import os
 import time
@@ -11,26 +12,22 @@ import enzyme
 import pandas as pd
 
 
-
 class S3Session:
-
     def __init__(self):
         config = self.read_config()
 
         self.test_bucket = "cam-tester1"
 
         self.session = boto3.Session(
-                aws_access_key_id=config["AWS"]["aws_access_key"],
-                aws_secret_access_key=config["AWS"]["aws_secret_key"],
-            )
+            aws_access_key_id=config["AWS"]["aws_access_key"],
+            aws_secret_access_key=config["AWS"]["aws_secret_key"],
+        )
 
         self.s3_resource = self.session.resource("s3")
 
+        # test_file = self.create_random_file("tester.txt")
 
-        #test_file = self.create_random_file("tester.txt")
-
-        #self.upload("cam-tester1", test_file)
-
+        # self.upload("cam-tester1", test_file)
 
     def upload(self, bucket_name, file_name, key=None):
         """
@@ -41,12 +38,11 @@ class S3Session:
         otherwise False
         """
         try:
-            f= (file_name if not key else key)
-            self.s3_resource.Object(bucket_name, f).upload_file(Filename = file_name)
+            f = file_name if not key else key
+            self.s3_resource.Object(bucket_name, f).upload_file(Filename=file_name)
         except Exception as e:
             return False, e
         return True, None
-
 
     def download(self, bucket_name, file_name):
         """
@@ -57,7 +53,8 @@ class S3Session:
         """
         download_file_name = f'/home/alejandro/Scripts/Cam1/{"aws_"+file_name}'
         self.s3_resource.Object(bucket_name, file_name).download_file(
-            download_file_name)
+            download_file_name
+        )
 
         return download_file_name
 
@@ -77,19 +74,17 @@ class S3Session:
 
     @staticmethod
     def create_random_file(file_name):
-        rand_file_name = "".join([str(uuid.uuid4().hex[:4]),"_",file_name])
+        rand_file_name = "".join([str(uuid.uuid4().hex[:4]), "_", file_name])
         with open(rand_file_name, "w") as f:
-            f.write("this "*100)
+            f.write("this " * 100)
         f.close()
         return rand_file_name
-
 
     @staticmethod
     def read_config():
         config = ConfigParser()
         config.read("settings.ini")
         return config
-
 
 
 def bucket_exists(bucket_name):
@@ -99,7 +94,7 @@ def bucket_exists(bucket_name):
     :return: True if the referenced bucket_name exists, otherwise False
     """
 
-    s3 = boto3.client('s3')
+    s3 = boto3.client("s3")
     try:
         response = s3.head_bucket(Bucket=bucket_name)
     except ClientError as e:
@@ -109,14 +104,14 @@ def bucket_exists(bucket_name):
 
 
 class VidManager(S3Session):
-
     def __init__(self):
         super(VidManager, self).__init__()
         self.cam1_path = "/home/alejandro/cam1/"
-        self.reference_time = datetime.datetime(2018, 1, 1, tzinfo=datetime.timezone.utc)
+        self.reference_time = datetime.datetime(
+            2018, 1, 1, tzinfo=datetime.timezone.utc
+        )
 
-
-        #self.sweeper()
+        # self.sweeper()
 
     def sweeper(self, timeout):
         """collect vids stored locally,
@@ -124,38 +119,40 @@ class VidManager(S3Session):
              upload vids and metadata to s3
         """
 
-
         self.current_local_files = self.get_local_vids(self.cam1_path)
         self.aws_files = self.get_all_bucket_objects(self.test_bucket)
         new_metadata = self.make_metadata_file()
 
         for f in self.current_local_files:
             # remove local file if present in aws and in metadata
-            if (f.split("/")[-1] in self.aws_files and
-                f.split("/")[-1] in new_metadata["file_name"].to_list()):
-                    os.remove(f)
+            if (
+                f.split("/")[-1] in self.aws_files
+                and f.split("/")[-1] in new_metadata["file_name"].to_list()
+            ):
+                os.remove(f)
             # upload local file and remove its local instance
-            elif (f.split("/")[-1] not in self.aws_files and
-                f.split("/")[-1] in new_metadata["file_name"].to_list()):
-                result, err = self.upload(self.test_bucket, f, key = f.split("/")[-1])
+            elif (
+                f.split("/")[-1] not in self.aws_files
+                and f.split("/")[-1] in new_metadata["file_name"].to_list()
+            ):
+                result, err = self.upload(self.test_bucket, f, key=f.split("/")[-1])
                 if result:
                     os.remove(f)
                     print(f"upload: ", f.split("/")[-1])
                 else:
-                    #TODO: add to a log
+                    # TODO: add to a log
                     print(f"***ERROR: could not upload the following filr\n {f}")
                     print(f"error code: {err}")
             # if local file in s3 but not metadata
-            elif (f.split("/")[-1] in self.aws_files and
-                f.split("/")[-1] not in new_metadata["file_name"].to_list()):
-                #TODO: add to log
+            elif (
+                f.split("/")[-1] in self.aws_files
+                and f.split("/")[-1] not in new_metadata["file_name"].to_list()
+            ):
+                # TODO: add to log
                 print(f"***ERROR: {f}\n not in metadata but present in aws.")
-
 
         time.sleep(timeout)
         return
-
-
 
     def get_local_vids(self, cam_path):
         """return all file name remaining in the camera path
@@ -165,7 +162,7 @@ class VidManager(S3Session):
         # r=root, d=directories, f = files
         for r, d, f in os.walk(cam_path):
             for file in f:
-                if '.mkv' in file:
+                if ".mkv" in file:
                     vid_files.append(os.path.join(r, file))
 
         return vid_files
@@ -186,34 +183,44 @@ class VidManager(S3Session):
                 self.current_local_files.remove(vid)
                 continue
             end_time = start_time + duration
-            epoch_start = (start_time-self.reference_time).total_seconds()
+            epoch_start = (start_time - self.reference_time).total_seconds()
             epoch_end = (end_time - self.reference_time).total_seconds()
 
-            vid_meta_list.append((vid.split("/")[-1],
-                start_time.isoformat(),
-                epoch_start,
-                end_time.isoformat(),
-                epoch_end,
-                duration.total_seconds()))
+            vid_meta_list.append(
+                (
+                    vid.split("/")[-1],
+                    start_time.isoformat(),
+                    epoch_start,
+                    end_time.isoformat(),
+                    epoch_end,
+                    duration.total_seconds(),
+                )
+            )
 
         # store metadata in dataframe, add to meta.csv, upload to aws
-        local_metadata = pd.DataFrame(vid_meta_list, columns = ["file_name",
-            "start",
-            "epoch_start",
-            "end",
-            "epoch_end",
-            "duration (s)"], index = None)
+        local_metadata = pd.DataFrame(
+            vid_meta_list,
+            columns=[
+                "file_name",
+                "start",
+                "epoch_start",
+                "end",
+                "epoch_end",
+                "duration (s)",
+            ],
+            index=None,
+        )
 
-        local_metadata.to_csv("meta.csv", index = False)
-        aws_metadata = pd.read_csv(
-            self.download(self.test_bucket, "meta.csv"))
+        local_metadata.to_csv("meta.csv", index=False)
+        aws_metadata = pd.read_csv(self.download(self.test_bucket, "meta.csv"))
 
-        new_metadata = pd.concat([local_metadata, aws_metadata], ignore_index = True)
-        new_metadata.drop_duplicates(subset ="file_name", inplace = True)
+        new_metadata = pd.concat([local_metadata, aws_metadata], ignore_index=True)
+        new_metadata.drop_duplicates(subset="file_name", inplace=True)
 
         # filenames which may not be in the bucket
-        new_uploads = local_metadata["file_name"][~local_metadata["file_name"].isin(
-            aws_metadata["file_name"])].to_list()
+        new_uploads = local_metadata["file_name"][
+            ~local_metadata["file_name"].isin(aws_metadata["file_name"])
+        ].to_list()
 
         return new_metadata
 
@@ -243,10 +250,11 @@ class VidManager(S3Session):
         f.close()
         return t_delta
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     cam1 = VidManager()
-    count =1
+    count = 1
     while True:
         print(f"epoch: {count}")
-        cam1.sweeper(timeout = 10)
-        count+=1
+        cam1.sweeper(timeout=10)
+        count += 1
