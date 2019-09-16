@@ -3,11 +3,13 @@ import datetime
 #import logging
 import uuid
 import os
+import time
 
 import boto3
 from botocore.exceptions import ClientError
 import enzyme
 import pandas as pd
+
 
 
 class S3Session:
@@ -73,12 +75,11 @@ class S3Session:
 
         return object_list
 
-file_name
     @staticmethod
     def create_random_file(file_name):
         rand_file_name = "".join([str(uuid.uuid4().hex[:4]),"_",file_name])
         with open(rand_file_name, "w") as f:
-            f.write("this shit"*100)
+            f.write("this "*100)
         f.close()
         return rand_file_name
 
@@ -115,31 +116,44 @@ class VidManager(S3Session):
         self.reference_time = datetime.datetime(2018, 1, 1, tzinfo=datetime.timezone.utc)
 
 
-        self.sweeper()
+        #self.sweeper()
 
-    def sweeper(self):
+    def sweeper(self, timeout):
         """collect vids stored locally,
             make new metadata file,
              upload vids and metadata to s3
         """
+
 
         self.current_local_files = self.get_local_vids(self.cam1_path)
         self.aws_files = self.get_all_bucket_objects(self.test_bucket)
         new_metadata = self.make_metadata_file()
 
         for f in self.current_local_files:
-            print(f.split("/")[-1])
-            if (f.split("/")[-1] not in self.aws_files and
+            # remove local file if present in aws and in metadata
+            if (f.split("/")[-1] in self.aws_files and
                 f.split("/")[-1] in new_metadata["file_name"].to_list()):
-                result, err = self.upload(self.test_bucket, f, key = f.split("/")[-1]))
+                    os.remove(f)
+            # upload local file and remove its local instance
+            elif (f.split("/")[-1] not in self.aws_files and
+                f.split("/")[-1] in new_metadata["file_name"].to_list()):
+                result, err = self.upload(self.test_bucket, f, key = f.split("/")[-1])
                 if result:
                     os.remove(f)
+                    print(f"upload: ", f.split("/")[-1])
                 else:
+                    #TODO: add to a log
                     print(f"***ERROR: could not upload the following filr\n {f}")
                     print(f"error code: {err}")
-        #self.aws_files = self.get_all_bucket_objects(self.test_bucket)
+            # if local file in s3 but not metadata
+            elif (f.split("/")[-1] in self.aws_files and
+                f.split("/")[-1] not in new_metadata["file_name"].to_list()):
+                #TODO: add to log
+                print(f"***ERROR: {f}\n not in metadata but present in aws.")
 
-        breakpoint()
+
+        time.sleep(timeout)
+        return
 
 
 
@@ -168,6 +182,9 @@ class VidManager(S3Session):
             start_list = self.parse_file_name(vid)
             start_time = datetime.datetime(*start_list, tzinfo=datetime.timezone.utc)
             duration = self.get_vid_duraiton(vid)
+            if duration is None:
+                self.current_local_files.remove(vid)
+                continue
             end_time = start_time + duration
             epoch_start = (start_time-self.reference_time).total_seconds()
             epoch_end = (end_time - self.reference_time).total_seconds()
@@ -216,13 +233,20 @@ class VidManager(S3Session):
         use enzyme library to extract video duration object
         param: file_name
         """
-        with open(file_name, "rb") as f:
-            meta = enzyme.MKV(f)
-            t_delta = meta.info.duration
-
+        try:
+            with open(file_name, "rb") as f:
+                meta = enzyme.MKV(f)
+                t_delta = meta.info.duration
+        except OSError:
+            f.close()
+            return None
         f.close()
         return t_delta
 
 if __name__ == '__main__':
     cam1 = VidManager()
-    bucket = S3Session()
+    count =1
+    while True:
+        print(f"epoch: {count}")
+        cam1.sweeper(timeout = 10)
+        count+=1
