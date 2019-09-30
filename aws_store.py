@@ -13,7 +13,11 @@ import pandas as pd
 
 
 class S3Session:
-    def __init__(self):
+    """
+        onject for handling s3 sessions
+        (check, storage, retrieval)
+    """
+    def __init__(self, aws_bucket="cam-tester1"):
         config = self.read_config()
 
         self.test_bucket = "cam-tester1"
@@ -104,25 +108,29 @@ def bucket_exists(bucket_name):
 
 
 class VidManager(S3Session):
-    def __init__(self):
+    def __init__(self, camera_path="/home/alejandro/cam1/"):
         super(VidManager, self).__init__()
         self.cam1_path = "/home/alejandro/cam1/"
         self.reference_time = datetime.datetime(
             2018, 1, 1, tzinfo=datetime.timezone.utc
         )
 
-        # self.sweeper()
 
     def sweeper(self, timeout):
         """collect vids stored locally,
             make new metadata file,
              upload vids and metadata to s3
         """
-
+        #files remaining on local drive
         self.current_local_files = self.get_local_vids(self.cam1_path)
+        #all files on aws now
         self.aws_files = self.get_all_bucket_objects(self.test_bucket)
+        # create new metadata.csv on local+s3 vids, uplod the new file
         new_metadata = self.make_metadata_file()
+        self.upload(self.test_bucket, "metadata.csv")
 
+        # loops through local vids
+        #TODO: organize by creation date and do either FiFo uploads or something else
         for f in self.current_local_files:
             # remove local file if present in aws and in metadata
             if (
@@ -135,6 +143,7 @@ class VidManager(S3Session):
                 f.split("/")[-1] not in self.aws_files
                 and f.split("/")[-1] in new_metadata["file_name"].to_list()
             ):
+                #TODO: select upload bucket based on unit and camera
                 result, err = self.upload(self.test_bucket, f, key=f.split("/")[-1])
                 if result:
                     os.remove(f)
@@ -156,8 +165,8 @@ class VidManager(S3Session):
         return
 
     def get_local_vids(self, cam_path):
-        """return all file name remaining in the camera path
-
+        """return all remaining files for camera which stores vids in
+            cam_path
         """
         vid_files = []
         # r=root, d=directories, f = files
@@ -165,14 +174,12 @@ class VidManager(S3Session):
             for file in f:
                 if ".mkv" in file:
                     vid_files.append(os.path.join(r, file))
-
         return vid_files
 
     def make_metadata_file(self):
         """
-        Extract meta data, store in running file
-        video start time is stored in the file name
-        while the video duraiton must be extracted using enzyme
+            Extract meta data for local vids, append this to aws metadata
+            store in local running file: metadata.csv
         """
         vid_meta_list = []
         for vid in self.current_local_files:
@@ -216,6 +223,8 @@ class VidManager(S3Session):
         try:
             aws_metadata = pd.read_csv(self.download(self.test_bucket, "metadata.csv"))
         except:
+            #TODO: this is kinda fucked right now. make sure the returned error is
+            #"file not found" if you are going to make an entirely new metadata file
             aws_metadata = pd.DataFrame(
             columns=[
                 "file_name",
@@ -231,9 +240,8 @@ class VidManager(S3Session):
         new_metadata = pd.concat([local_metadata, aws_metadata], ignore_index=True, sort = False)
         new_metadata.drop_duplicates(subset="file_name", inplace=True)
 
+        #replace current metadata file
         new_metadata.to_csv("metadata.csv", index=False)
-
-        self.upload(self.test_bucket, "metadata.csv")
 
         return new_metadata
 
