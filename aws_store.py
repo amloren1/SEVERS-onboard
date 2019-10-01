@@ -55,23 +55,23 @@ class S3Session:
         :param file_name: string
         :return: desired object
         """
-        download_file_name = f'/home/alejandro/Scripts/Cam1/{"aws_"+file_name}'
+        download_file_name = f"/home/alejandro/Scripts/Cam1/{'aws_'+file_name}"
         self.s3_resource.Object(bucket_name, file_name).download_file(
             download_file_name
         )
 
         return download_file_name
 
-    def get_all_bucket_objects(self, bucket_name):
+    def get_all_bucket_objects(self, bucket_name, prefix="CAM"):
         """
         looks into bucket and returns list of all file names
         :param bucket_name: string
-        :return: list of all object names in bucket
+        :return: list of all object names in bucket with prefix="CAM"
         """
         object_list = []
         bucket = self.s3_resource.Bucket(bucket_name)
 
-        for obj in bucket.objects.all():
+        for obj in bucket.objects.filter(Prefix=prefix).all():
             object_list.append(obj.key)
 
         return object_list
@@ -123,15 +123,17 @@ class VidManager(S3Session):
         """
         #files remaining on local drive
         self.current_local_files = self.get_local_vids(self.cam1_path)
+        self.current_local_files.sort()
+
         #all files on aws now
         self.aws_files = self.get_all_bucket_objects(self.test_bucket)
-        # create new metadata.csv on local+s3 vids, uplod the new file
+        # create new metadata.csv on local+s3 vids, upload the new file
         new_metadata = self.make_metadata_file()
         self.upload(self.test_bucket, "metadata.csv")
 
         # loops through local vids
-        #TODO: organize by creation date and do either FiFo uploads or something else
-        for f in self.current_local_files:
+        #TODO: current is FiFo uploads. Consider other method of uploads
+        for f in sorted(self.current_local_files):
             # remove local file if present in aws and in metadata
             if (
                 f.split("/")[-1] in self.aws_files
@@ -161,6 +163,7 @@ class VidManager(S3Session):
                 # TODO: add to log
                 print(f"***ERROR: {f}\n not in metadata but present in aws.")
 
+        #all files have been uploaded, sleep for 10 seconds before looking for more
         time.sleep(timeout)
         return
 
@@ -250,7 +253,7 @@ class VidManager(S3Session):
         """
             extracts video begin time from file name
         """
-        date_list = file_name.split("/")[-1].strip(".mkv").split("-")[1].split(":")
+        date_list = file_name.split("/")[-1].strip(".mkv").split("_")[1].split(":")
         date_list = [int(x) for x in date_list]
 
         return date_list
@@ -271,9 +274,19 @@ class VidManager(S3Session):
         f.close()
         return t_delta
 
+    def verify_s3(self):
+        """
+            check if all files in bucket are in the current metadata file
+            vice-versa
+        """
+        aws_files = self.get_all_bucket_objects(self.test_bucket)
+        aws_metadata = pd.read_csv(self.download(self.test_bucket, "metadata.csv"))
+
+        breakpoint()
 
 if __name__ == "__main__":
     cam1 = VidManager()
+    cam1.verify_s3()
     count = 1
     while True:
         print(f"epoch: {count}")
