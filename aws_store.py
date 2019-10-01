@@ -282,9 +282,13 @@ class VidManager(S3Session):
         if bucket=="default":
             bucket=self.test_bucket
         aws_files = set(self.get_all_bucket_objects(bucket))
-        aws_metadata = pd.read_csv(self.download(bucket, "metadata.csv"))
+        try:
+            aws_metadata = pd.read_csv(self.download(bucket, "metadata.csv"))
+            metadata_files = set(aws_metadata.file_name)
+        except ClientError:
+            print("WARNING: no AWS metadata to compare")
+            metadata_files = set()
 
-        metadata_files = set(aws_metadata.file_name)
         common = metadata_files.intersection(aws_files)
 
         #in metadata but not yet uploaded
@@ -296,10 +300,12 @@ class VidManager(S3Session):
         status = True
         #report
         if len(not_uploaded) > 0:
-            print(f"ERROR: Files NOT UPLOADED but in metadata: {not_uploaded}")
+            print(f"ERROR: Files NOT UPLOADED but in metadata:")
+            print(*not_uploaded, sep="\n")
             status=False
         if len(no_metadata) > 0:
-            print(f"ERROR: Files NOT IN METADATA but uploaded: {no_metadata}")
+            print("ERROR: Files NOT IN METADATA but uploaded: ")
+            print(*no_metadata, sep="\n")
             status=False
         if status:
             print("ALL CLEAR: aws files and metadata in order")
@@ -308,9 +314,9 @@ class VidManager(S3Session):
 
 if __name__ == "__main__":
     cam1 = VidManager()
-    cam1.verify_s3()
     count = 1
     while True:
         print(f"epoch: {count}")
+        cam1.verify_s3()
         cam1.sweeper(timeout=10)
         count += 1
