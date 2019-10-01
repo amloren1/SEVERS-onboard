@@ -274,15 +274,37 @@ class VidManager(S3Session):
         f.close()
         return t_delta
 
-    def verify_s3(self):
+    def verify_s3(self, bucket="default"):
         """
             check if all files in bucket are in the current metadata file
             vice-versa
         """
-        aws_files = self.get_all_bucket_objects(self.test_bucket)
-        aws_metadata = pd.read_csv(self.download(self.test_bucket, "metadata.csv"))
+        if bucket=="default":
+            bucket=self.test_bucket
+        aws_files = set(self.get_all_bucket_objects(bucket))
+        aws_metadata = pd.read_csv(self.download(bucket, "metadata.csv"))
 
-        breakpoint()
+        metadata_files = set(aws_metadata.file_name)
+        common = metadata_files.intersection(aws_files)
+
+        #in metadata but not yet uploaded
+        not_uploaded = metadata_files.difference(common)
+
+        #uploaded but no metadata
+        no_metadata = aws_files.difference(common)
+
+        status = True
+        #report
+        if len(not_uploaded) > 0:
+            print(f"ERROR: Files NOT UPLOADED but in metadata: {not_uploaded}")
+            status=False
+        if len(no_metadata) > 0:
+            print(f"ERROR: Files NOT IN METADATA but uploaded: {no_metadata}")
+            status=False
+        if status:
+            print("ALL CLEAR: aws files and metadata in order")
+
+        return status
 
 if __name__ == "__main__":
     cam1 = VidManager()
