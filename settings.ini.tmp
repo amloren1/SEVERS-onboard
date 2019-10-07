@@ -1,5 +1,10 @@
 
-[AWS]
-aws_secret_key =  
-aws_access_key =   
 
+[AWS]
+aws_secret_key =
+aws_access_key =
+bucket =
+
+[PATHS]
+vids =
+working_dir =

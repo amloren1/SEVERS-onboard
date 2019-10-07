@@ -20,8 +20,9 @@ class S3Session:
     def __init__(self, aws_bucket="cam-tester1"):
         config = self.read_config()
 
-        self.test_bucket = "cam-tester1"
-
+        self.test_bucket = config["AWS"]["bucket"]
+        self.working_dir = config["PATHS"]["working_dir"]
+        self.vids_path = config["PATHS"]["vids"]
         self.session = boto3.Session(
             aws_access_key_id=config["AWS"]["aws_access_key"],
             aws_secret_access_key=config["AWS"]["aws_secret_key"],
@@ -55,7 +56,8 @@ class S3Session:
         :param file_name: string
         :return: desired object
         """
-        download_file_name = f"/home/alejandro/Scripts/Cam1/{'aws_'+file_name}"
+        dwnld_path = self.working_dir+'aws_'+file_name
+        download_file_name = f"{dwnld_path}"
         self.s3_resource.Object(bucket_name, file_name).download_file(
             download_file_name
         )
@@ -110,7 +112,7 @@ def bucket_exists(bucket_name):
 class VidManager(S3Session):
     def __init__(self, camera_path="/home/alejandro/cam1/"):
         super(VidManager, self).__init__()
-        self.cam1_path = "/home/alejandro/cam1/"
+        self.cam1_path = self.vids_path
         self.reference_time = datetime.datetime(
             2018, 1, 1, tzinfo=datetime.timezone.utc
         )
@@ -124,7 +126,6 @@ class VidManager(S3Session):
         #files remaining on local drive
         self.current_local_files = self.get_local_vids(self.cam1_path)
         self.current_local_files.sort()
-
         #all files on aws now
         self.aws_files = self.get_all_bucket_objects(self.test_bucket)
         # create new metadata.csv on local+s3 vids, upload the new file
@@ -317,6 +318,6 @@ if __name__ == "__main__":
     count = 1
     while True:
         print(f"epoch: {count}")
-        cam1.verify_s3()
+        #cam1.verify_s3()
         cam1.sweeper(timeout=10)
         count += 1
