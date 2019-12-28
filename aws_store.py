@@ -57,7 +57,7 @@ class S3Session:
         :return: desired object
         """
         dwnld_path = self.working_dir+'aws_'+file_name
-        download_file_name = f"{dwnld_path}"
+        download_file_name = "{}".format(dwnld_path)
         self.s3_resource.Object(bucket_name, file_name).download_file(
             download_file_name
         )
@@ -151,18 +151,18 @@ class VidManager(S3Session):
                 if result:
                     os.remove(f)
                     #TODO: send to logs
-                    print(f"upload: ", f.split("/")[-1])
+                    print("upload: ", f.split("/")[-1])
                 else:
                     # TODO: add to a log
-                    print(f"***ERROR: could not upload the following filr\n {f}")
-                    print(f"error code: {err}")
+                    print("***ERROR: could not upload the following filr\n {}".format(f))
+                    print("error code: {}".format(err))
             # if local file in s3 but not metadata
             elif (
                 f.split("/")[-1] in self.aws_files
                 and f.split("/")[-1] not in new_metadata["file_name"].to_list()
             ):
                 # TODO: add to log
-                print(f"***ERROR: {f}\n not in metadata but present in aws.")
+                print("***ERROR: {}\n not in metadata but present in aws.".format(f))
 
         #all files have been uploaded, sleep for 10 seconds before looking for more
         time.sleep(timeout)
@@ -301,7 +301,7 @@ class VidManager(S3Session):
         status = True
         #report
         if len(not_uploaded) > 0:
-            print(f"ERROR: Files NOT UPLOADED but in metadata:")
+            print("ERROR: Files NOT UPLOADED but in metadata:")
             print(*not_uploaded, sep="\n")
             status=False
         if len(no_metadata) > 0:
@@ -317,7 +317,7 @@ if __name__ == "__main__":
     cam1 = VidManager()
     count = 1
     while True:
-        print(f"epoch: {count}")
+        print("epoch: {}".format(count))
         #cam1.verify_s3()
         cam1.sweeper(timeout=10)
         count += 1
