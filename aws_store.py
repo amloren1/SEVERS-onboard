@@ -176,9 +176,10 @@ class VidManager(S3Session):
         # r=root, d=directories, f = files
         for r, d, f in os.walk(cam_path):
             for file in f:
-                if ".mkv" in file:
+                if ".mkv" in file and ":" in file:
                     vid_files.append(os.path.join(r, file))
         return vid_files
+
 
     def make_metadata_file(self):
         """
@@ -187,7 +188,6 @@ class VidManager(S3Session):
         """
         vid_meta_list = []
         for vid in self.current_local_files:
-
             start_list = self.parse_file_name(vid)
             start_time = datetime.datetime(*start_list, tzinfo=datetime.timezone.utc)
             duration = self.get_vid_duraiton(vid)
@@ -254,9 +254,12 @@ class VidManager(S3Session):
         """
             extracts video begin time from file name
         """
-        date_list = file_name.split("/")[-1].strip(".mkv").split("_")[1].split(":")
-        date_list = [int(x) for x in date_list]
-
+        try:
+            date_list = file_name.split("/")[-1].strip(".mkv").split("_")[1].split(":")
+            date_list = [int(x) for x in date_list]
+        except Exception as e:
+            print(e)
+            import pdb; pdb.set_trace()
         return date_list
 
     @staticmethod
