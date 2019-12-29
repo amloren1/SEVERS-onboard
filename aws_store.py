@@ -57,7 +57,7 @@ class S3Session:
         :return: desired object
         """
         dwnld_path = self.working_dir+'aws_'+file_name
-        download_file_name = f"{dwnld_path}"
+        download_file_name = "{}".format(dwnld_path)
         self.s3_resource.Object(bucket_name, file_name).download_file(
             download_file_name
         )
@@ -151,18 +151,18 @@ class VidManager(S3Session):
                 if result:
                     os.remove(f)
                     #TODO: send to logs
-                    print(f"upload: ", f.split("/")[-1])
+                    print("upload: ", f.split("/")[-1])
                 else:
                     # TODO: add to a log
-                    print(f"***ERROR: could not upload the following filr\n {f}")
-                    print(f"error code: {err}")
+                    print("***ERROR: could not upload the following filr\n {}".format(f))
+                    print("error code: {}".format(err))
             # if local file in s3 but not metadata
             elif (
                 f.split("/")[-1] in self.aws_files
                 and f.split("/")[-1] not in new_metadata["file_name"].to_list()
             ):
                 # TODO: add to log
-                print(f"***ERROR: {f}\n not in metadata but present in aws.")
+                print("***ERROR: {}\n not in metadata but present in aws.".format(f))
 
         #all files have been uploaded, sleep for 10 seconds before looking for more
         time.sleep(timeout)
@@ -176,9 +176,10 @@ class VidManager(S3Session):
         # r=root, d=directories, f = files
         for r, d, f in os.walk(cam_path):
             for file in f:
-                if ".mkv" in file:
+                if ".mkv" in file and ":" in file:
                     vid_files.append(os.path.join(r, file))
         return vid_files
+
 
     def make_metadata_file(self):
         """
@@ -187,7 +188,6 @@ class VidManager(S3Session):
         """
         vid_meta_list = []
         for vid in self.current_local_files:
-
             start_list = self.parse_file_name(vid)
             start_time = datetime.datetime(*start_list, tzinfo=datetime.timezone.utc)
             duration = self.get_vid_duraiton(vid)
@@ -254,9 +254,12 @@ class VidManager(S3Session):
         """
             extracts video begin time from file name
         """
-        date_list = file_name.split("/")[-1].strip(".mkv").split("_")[1].split(":")
-        date_list = [int(x) for x in date_list]
-
+        try:
+            date_list = file_name.split("/")[-1].strip(".mkv").split("_")[1].split(":")
+            date_list = [int(x) for x in date_list]
+        except Exception as e:
+            print(e)
+            import pdb; pdb.set_trace()
         return date_list
 
     @staticmethod
@@ -301,7 +304,7 @@ class VidManager(S3Session):
         status = True
         #report
         if len(not_uploaded) > 0:
-            print(f"ERROR: Files NOT UPLOADED but in metadata:")
+            print("ERROR: Files NOT UPLOADED but in metadata:")
             print(*not_uploaded, sep="\n")
             status=False
         if len(no_metadata) > 0:
@@ -317,7 +320,7 @@ if __name__ == "__main__":
     cam1 = VidManager()
     count = 1
     while True:
-        print(f"epoch: {count}")
+        print("epoch: {}".format(count))
         #cam1.verify_s3()
         cam1.sweeper(timeout=10)
         count += 1
